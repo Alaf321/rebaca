@@ -168,25 +168,23 @@
     </div>
 
     <script>
-        // Link da API do Google Apps Script configurada
+        // URL da API do Google Apps Script configurada
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyhrrlkwenQIBnaDMWKnOkIght6c3jtaQMeS4f09qbrQcBGYhKxnw56HEDNelvL78f0pg/exec"; 
-        
-        // Link de publicação CSV do Sheets configurado
-        const LINK_CSV_PLANILHA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7OJgvc-8g1Szz4uve79H3fwcAXtviO9AiXifCc1_TZpKBXaXdGqrv4dawWUYgkZWcJjDm5cTPoy7W/pub?output=csv"; 
         
         const imgPadrao = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
         let musicasLocais = [];
 
         async function carregarMusicas() {
             try {
-                const response = await fetch(`${LINK_CSV_PLANILHA}&cachebust=${Date.now()}`);
+                // Agora requisitamos os dados direto do Apps Script (via GET) evitando bloqueios de CORS do CSV
+                const response = await fetch(GOOGLE_SCRIPT_URL);
                 if(!response.ok) {
-                    document.getElementById('gridRepertorio').innerHTML = `<div class="status-msg">Erro ao carregar repertório. Verifique as configurações de compartilhamento da planilha.</div>`;
+                    document.getElementById('gridRepertorio').innerHTML = `<div class="status-msg">Erro ao conectar com o servidor da banda.</div>`;
                     return;
                 }
                 
-                const dadosTexto = await response.text();
-                processarCSV(dadosTexto);
+                musicasLocais = await response.json();
+                renderizar(musicasLocais);
                 
             } catch (erro) {
                 console.error(erro);
@@ -194,34 +192,11 @@
             }
         }
 
-        function processarCSV(texto) {
-            const linhas = texto.split("\n");
-            musicasLocais = [];
-            
-            for(let i = 1; i < linhas.length; i++) {
-                if(!linhas[i].trim()) continue;
-                
-                const colunas = linhas[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-                const limpar = (txt) => txt ? txt.replace(/^"|"$/g, '').trim() : '';
-
-                musicasLocais.push({
-                    id: i,
-                    musica: limpar(colunas[0]),
-                    banda: limpar(colunas[1]),
-                    word: limpar(colunas[2]),
-                    youtube: limpar(colunas[3]),
-                    cifra: limpar(colunas[4]),
-                    banner: limpar(colunas[5])
-                });
-            }
-            renderizar(musicasLocais);
-        }
-
         function renderizar(lista) {
             const grid = document.getElementById('gridRepertorio');
             grid.innerHTML = '';
 
-            if(lista.length === 0) {
+            if(!lista || lista.length === 0) {
                 grid.innerHTML = '<div class="status-msg">Nenhuma música cadastrada na planilha ainda. Clique em "+ Nova Música" para estrear o setlist!</div>';
                 return;
             }
