@@ -168,7 +168,7 @@
     </div>
 
     <script>
-        // URL da API do Google Apps Script configurada
+        // URL da sua API do Google Apps Script
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyhrrlkwenQIBnaDMWKnOkIght6c3jtaQMeS4f09qbrQcBGYhKxnw56HEDNelvL78f0pg/exec"; 
         
         const imgPadrao = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
@@ -176,8 +176,8 @@
 
         async function carregarMusicas() {
             try {
-                // Agora requisitamos os dados direto do Apps Script (via GET) evitando bloqueios de CORS do CSV
-                const response = await fetch(GOOGLE_SCRIPT_URL);
+                // Consulta o Apps Script usando um parâmetro para forçar atualização e evitar cache antigo do navegador
+                const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=read&cachebust=${Date.now()}`);
                 if(!response.ok) {
                     document.getElementById('gridRepertorio').innerHTML = `<div class="status-msg">Erro ao conectar com o servidor da banda.</div>`;
                     return;
