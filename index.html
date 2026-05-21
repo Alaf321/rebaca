@@ -168,5 +168,157 @@
     </div>
 
     <script>
-        // URL da API do Google Apps Script configurada
-        const GOOGLE_SCRIPT_URL = "
+        // Link da API do Google Apps Script configurada
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyhrrlkwenQIBnaDMWKnOkIght6c3jtaQMeS4f09qbrQcBGYhKxnw56HEDNelvL78f0pg/exec"; 
+        
+        // Link de publicação CSV do Sheets configurado
+        const LINK_CSV_PLANILHA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7OJgvc-8g1Szz4uve79H3fwcAXtviO9AiXifCc1_TZpKBXaXdGqrv4dawWUYgkZWcJjDm5cTPoy7W/pub?output=csv"; 
+        
+        const imgPadrao = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
+        let musicasLocais = [];
+
+        async function carregarMusicas() {
+            try {
+                const response = await fetch(`${LINK_CSV_PLANILHA}&cachebust=${Date.now()}`);
+                if(!response.ok) {
+                    document.getElementById('gridRepertorio').innerHTML = `<div class="status-msg">Erro ao carregar repertório. Verifique as configurações de compartilhamento da planilha.</div>`;
+                    return;
+                }
+                
+                const dadosTexto = await response.text();
+                processarCSV(dadosTexto);
+                
+            } catch (erro) {
+                console.error(erro);
+                document.getElementById('gridRepertorio').innerHTML = `<div class="status-msg">Erro de conexão com o banco de dados da banda.</div>`;
+            }
+        }
+
+        function processarCSV(texto) {
+            const linhas = texto.split("\n");
+            musicasLocais = [];
+            
+            for(let i = 1; i < linhas.length; i++) {
+                if(!linhas[i].trim()) continue;
+                
+                const colunas = linhas[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                const limpar = (txt) => txt ? txt.replace(/^"|"$/g, '').trim() : '';
+
+                musicasLocais.push({
+                    id: i,
+                    musica: limpar(colunas[0]),
+                    banda: limpar(colunas[1]),
+                    word: limpar(colunas[2]),
+                    youtube: limpar(colunas[3]),
+                    cifra: limpar(colunas[4]),
+                    banner: limpar(colunas[5])
+                });
+            }
+            renderizar(musicasLocais);
+        }
+
+        function renderizar(lista) {
+            const grid = document.getElementById('gridRepertorio');
+            grid.innerHTML = '';
+
+            if(lista.length === 0) {
+                grid.innerHTML = '<div class="status-msg">Nenhuma música cadastrada na planilha ainda. Clique em "+ Nova Música" para estrear o setlist!</div>';
+                return;
+            }
+
+            lista.forEach(m => {
+                const bannerSrc = m.banner ? m.banner : imgPadrao;
+                
+                const wordAttr = m.word ? `href="${m.word}" target="_blank"` : `href="#" class="btn-link btn-word disabled" onclick="return false;"`;
+                const ytAttr = m.youtube ? `href="${m.youtube}" target="_blank"` : `href="#" class="btn-link btn-youtube disabled" onclick="return false;"`;
+                const cifraAttr = m.cifra ? `href="${m.cifra}" target="_blank"` : `href="#" class="btn-link btn-cifra disabled" onclick="return false;"`;
+
+                grid.innerHTML += `
+                    <div class="card-musica" data-string="${m.musica.toLowerCase()} ${m.banda.toLowerCase()}">
+                        <div class="banner-banda" style="background-image: url('${bannerSrc}');">
+                            <div class="banner-overlay">
+                                <span class="nome-banda">${m.banda}</span>
+                            </div>
+                        </div>
+                        <div class="conteudo-musica">
+                            <h3 class="titulo-musica">${m.musica}</h3>
+                            <div class="links-container">
+                                <a ${m.word ? `class="btn-link btn-word"` : ''} ${wordAttr}>Documento Word (.docx)</a>
+                                <a ${m.youtube ? `class="btn-link btn-youtube"` : ''} ${ytAttr}>Vídeo de Referência</a>
+                                <a ${m.cifra ? `class="btn-link btn-cifra"` : ''} ${cifraAttr}>Cifra Web alternativa</a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        async function salvarMusica() {
+            const musica = document.getElementById('formMusica').value;
+            const banda = document.getElementById('formBanda').value;
+            const senha = document.getElementById('formSenha').value;
+            
+            if(!musica || !banda || !senha) {
+                alert('Música, Banda e Senha são campos obrigatórios!');
+                return;
+            }
+
+            const btnSalvar = document.getElementById('btnSalvarId');
+            btnSalvar.disabled = true;
+            btnSalvar.innerText = "Enviando para o Google...";
+
+            const payload = {
+                musica: musica,
+                banda: banda,
+                word: document.getElementById('formLinkWord').value,
+                youtube: document.getElementById('formLinkYoutube').value,
+                cifra: document.getElementById('formLinkCifra').value,
+                banner: document.getElementById('formBanner').value,
+                senha: senha
+            };
+
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                alert('Comando enviado! Aguarde 3 segundos e a página irá atualizar o repertório.');
+                fecharModal();
+                setTimeout(carregarMusicas, 3000);
+
+            } catch (erro) {
+                alert('Erro de rede: ' + erro);
+            } finally {
+                btnSalvar.disabled = false;
+                btnSalvar.innerText = "Salvar Música";
+            }
+        }
+
+        function abrirModal() { document.getElementById('modalForm').style.display = 'flex'; }
+        function fecharModal() { 
+            document.getElementById('modalForm').style.display = 'none';
+            document.getElementById('formMusica').value = '';
+            document.getElementById('formBanda').value = '';
+            document.getElementById('formLinkWord').value = '';
+            document.getElementById('formLinkYoutube').value = '';
+            document.getElementById('formLinkCifra').value = '';
+            document.getElementById('formBanner').value = '';
+            document.getElementById('formSenha').value = '';
+        }
+
+        function filtrarMusicas() {
+            const termo = document.getElementById('searchIn').value.toLowerCase();
+            const cards = document.getElementsByClassName('card-musica');
+            for(let card of cards) {
+                const buscaString = card.getAttribute('data-string');
+                card.style.display = buscaString.includes(termo) ? 'block' : 'none';
+            }
+        }
+
+        carregarMusicas();
+    </script>
+</body>
+</html>
