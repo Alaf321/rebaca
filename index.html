@@ -168,27 +168,62 @@
     </div>
 
     <script>
-        // URL da sua API do Google Apps Script
+        // URL da sua API do Google Apps Script (Validada e Inserida)
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyhrrlkwenQIBnaDMWKnOkIght6c3jtaQMeS4f09qbrQcBGYhKxnw56HEDNelvL78f0pg/exec"; 
         
+        // Link de publicação CSV (Usado como contingência caso o Script envie um JSON vazio)
+        const LINK_CSV_PLANILHA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7OJgvc-8g1Szz4uve79H3fwcAXtviO9AiXifCc1_TZpKBXaXdGqrv4dawWUYgkZWcJjDm5cTPoy7W/pub?output=csv"; 
+
         const imgPadrao = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
         let musicasLocais = [];
 
         async function carregarMusicas() {
             try {
-                // Consulta o Apps Script usando um parâmetro para forçar atualização e evitar cache antigo do navegador
-                const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=read&cachebust=${Date.now()}`);
+                // Tenta puxar do Apps Script primeiro
+                const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=read`);
+                const dados = await response.json();
+                
+                if (Array.isArray(dados)) {
+                    musicasLocais = dados;
+                    renderizar(musicasLocais);
+                } else {
+                    // Se o Script não retornar uma lista, usa o link CSV público automaticamente para não travar
+                    puxarDoCSV();
+                }
+            } catch (erro) {
+                console.log("Alternando para leitura de dados via CSV...");
+                puxarDoCSV();
+            }
+        }
+
+        async function puxarDoCSV() {
+            try {
+                const response = await fetch(`${LINK_CSV_PLANILHA}&cachebust=${Date.now()}`);
                 if(!response.ok) {
-                    document.getElementById('gridRepertorio').innerHTML = `<div class="status-msg">Erro ao conectar com o servidor da banda.</div>`;
+                    document.getElementById('gridRepertorio').innerHTML = `<div class="status-msg">Erro de conexão com o banco de dados da banda.</div>`;
                     return;
                 }
+                const texto = await response.text();
+                const linhas = texto.split("\n");
+                musicasLocais = [];
                 
-                musicasLocais = await response.json();
+                for(let i = 1; i < linhas.length; i++) {
+                    if(!linhas[i].trim()) continue;
+                    const colunas = linhas[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                    const limpar = (txt) => txt ? txt.replace(/^"|"$/g, '').trim() : '';
+
+                    musicasLocais.push({
+                        musica: limpar(colunas[0]),
+                        banda: limpar(colunas[1]),
+                        word: limpar(colunas[2]),
+                        youtube: limpar(colunas[3]),
+                        cifra: limpar(colunas[4]),
+                        banner: limpar(colunas[5])
+                    });
+                }
                 renderizar(musicasLocais);
-                
-            } catch (erro) {
-                console.error(erro);
-                document.getElementById('gridRepertorio').innerHTML = `<div class="status-msg">Erro de conexão com o banco de dados da banda.</div>`;
+            } catch(e) {
+                document.getElementById('gridRepertorio').innerHTML = `<div class="status-msg">Erro ao carregar o repertório da planilha.</div>`;
             }
         }
 
